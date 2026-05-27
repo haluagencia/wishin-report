@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Wishin — Report</title>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{--dk:#583122;--md:#8B5D43;--bg:#faf8f6}
@@ -171,16 +173,27 @@ footer{margin-top:2rem;padding-top:1rem;border-top:1px solid #e0d8d0;text-align:
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
-(function(){
-  if(window.storage&&typeof window.storage.get==='function')return;
-  var mem={};
-  window.storage={
-    get:function(k,sh){try{var v=localStorage.getItem('ws_'+(sh?'s:':'p:')+k);return Promise.resolve(v?{value:v}:null);}catch(e){return Promise.resolve(mem[k]?{value:mem[k]}:null);}},
-    set:function(k,v,sh){var val=typeof v==='string'?v:JSON.stringify(v);try{localStorage.setItem('ws_'+(sh?'s:':'p:')+k,val);}catch(e){mem[k]=val;}return Promise.resolve({value:val});},
-    delete:function(k,sh){try{localStorage.removeItem('ws_'+(sh?'s:':'p:')+k);}catch(e){delete mem[k];}return Promise.resolve(null);}
-  };
-  var mem={};
-})();
+// ── Firebase init ────────────────────────────────────────────
+var firebaseConfig={apiKey:"AIzaSyAL9tw0DKJWGfoWcdmo3cxpusBv4X0QjtY",authDomain:"wishin-report.firebaseapp.com",databaseURL:"https://wishin-report-default-rtdb.firebaseio.com",projectId:"wishin-report",storageBucket:"wishin-report.firebasestorage.app",messagingSenderId:"445503461152",appId:"1:445503461152:web:6d129a8d49ddcd40036945"};
+firebase.initializeApp(firebaseConfig);
+var fbdb=firebase.database();
+function fbKey(k){return k.replace(/[^a-zA-Z0-9_-]/g,'_');}
+window.storage={
+  get:function(k,sh){
+    if(!sh){try{var v=localStorage.getItem('ws_p:'+k);return Promise.resolve(v?{value:v}:null);}catch(e){return Promise.resolve(null);}}
+    return fbdb.ref('wishin/'+fbKey(k)).once('value').then(function(s){var v=s.val();return v?{value:typeof v==='string'?v:JSON.stringify(v)}:null;}).catch(function(){return null;});
+  },
+  set:function(k,v,sh){
+    var val=typeof v==='string'?v:JSON.stringify(v);
+    if(!sh){try{localStorage.setItem('ws_p:'+k,val);}catch(e){}return Promise.resolve({value:val});}
+    return fbdb.ref('wishin/'+fbKey(k)).set(val).then(function(){return{value:val};}).catch(function(){return{value:val};});
+  },
+  delete:function(k,sh){
+    if(!sh){try{localStorage.removeItem('ws_p:'+k);}catch(e){}return Promise.resolve(null);}
+    return fbdb.ref('wishin/'+fbKey(k)).remove().then(function(){return null;}).catch(function(){return null;});
+  }
+};
+var _rtIgnore=false;
 
 var VE=['anna.shin@wishin.com.br','geysa.machado@wishin.com.br','jiae.um@wishin.com.br','elisa.moreira@wishin.com.br','carolina.martins@wishin.com.br'];
 var VP='@Amowishin',EE=['brenda.moniqueli@wishin.com.br','oi@haluagencia.com'],EP='32461234';
@@ -954,6 +967,19 @@ async function init(){
   var ai=mons.indexOf('Abril 2026');
   if(ai>=0&&D[ai]&&!D[ai].inf.length){D[ai]={inf:AI.map(function(i){return Object.assign({},i);}),del:AD.map(function(d){return Object.assign({},d);}),cm:JSON.parse(JSON.stringify(ACM))};Object.entries(AR).forEach(function(kv){rep[kv[0]]=Object.assign({},kv[1]);});Object.entries(AP).forEach(function(kv){pays[kv[0]]=Object.assign({},kv[1]);});save();}
   if(restored){hbstart();track();}
+  // ── Listener tempo real ──────────────────────────────────
+  fbdb.ref('wishin/wsh_data').on('value',function(snap){
+    if(!CU)return;
+    if(_rtIgnore)return;
+    var v=snap.val();if(!v)return;
+    try{
+      var s=JSON.parse(typeof v==='string'?v:JSON.stringify(v));
+      if(s.mons)mons=s.mons;if(s.D)D=s.D;if(typeof s.aM==='number')aM=s.aM;
+      if(s.rep)rep=s.rep;if(s.iLnk)iLnk=s.iLnk;if(s.dMeta)dMeta=s.dMeta;
+      if(s.pays)pays=s.pays;if(s.covers)covers=s.covers;
+      render();
+    }catch(e){}
+  });
   render();
 }
 init();
